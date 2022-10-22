@@ -1,4 +1,4 @@
-node_modules
-obj
-bin
-.vs
+node_modules/
+obj/
+bin/
+.vs/

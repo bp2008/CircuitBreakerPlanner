@@ -12,6 +12,7 @@
     "name": ""
   },
   "dependencies": {
+    "localforage": "1.10.0",
     "vue": "2.6.12"
   },
   "devDependencies": {
