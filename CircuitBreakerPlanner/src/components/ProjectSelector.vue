@@ -1,11 +1,21 @@
 <template>
 	<div class="projectSelector">
-		<div class="projectList">
-			<div v-for="projectName in projectNames" :key="projectName" class="projectLink" role="button" tabindex="0" @click="loadProject(projectName)">{{projectName}}<span v-if="projectName === currentProjectName"> - LOADED</span></div>
-		</div>
+		<p v-if="projectNames.length > 0">Existing Projects:</p>
+		<ul class="projectList">
+			<li v-for="projectName in projectNames" :key="projectName">
+				<a class="projectName" role="button" tabindex="0" @click="loadProject(projectName)">
+					{{projectName}}
+				</a>
+				<span v-if="projectName === currentProjectName">
+					(LOADED)
+					<input type="button" value="delete" @click="deleteMe" />
+				</span>
+			</li>
+		</ul>
 		<div class="newProject">
 			<label>New Project: <input type="text" v-model="newProjectName" /></label> <input type="button" @click="createNewProject" value="Create" />
 		</div>
+		<p>Projects are saved in your browser's IndexedDB.</p>
 	</div>
 </template>
 <script>
@@ -32,11 +42,20 @@
 			createNewProject()
 			{
 				this.projectNames.push(this.newProjectName);
+				this.projectNames.sort();
+				this.loadProject(this.newProjectName);
 				this.newProjectName = "";
 			},
 			loadProject(projectName)
 			{
 				this.$emit("projectload", projectName);
+			},
+			deleteMe()
+			{
+				if (confirm("Confirm you wish to delete \"" + this.currentProjectName + "\"."))
+				{
+					this.$emit("projectdelete", this.currentProjectName);
+				}
 			}
 		}
 	};
@@ -47,24 +66,20 @@
 		margin-bottom: 1em;
 	}
 
-	.projectList
+	.projectName
 	{
-		display: flex;
-		flex-direction: column;
 		color: #0033FF;
 		font-weight: bold;
-	}
-
-	.projectLink
-	{
-		margin-bottom: 1em;
-		border-bottom: 1px solid #AAAAAA;
+		text-decoration: underline;
 		cursor: pointer;
 	}
 
-		.projectLink:last-child
+	@media print
+	{
+		.projectSelector
 		{
-			border-bottom: none;
+			display: none;
 		}
+	}
 </style>
 

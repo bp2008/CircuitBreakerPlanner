@@ -1,5 +1,8 @@
 <template>
-	<div class="breaker">
+	<div class="breaker" draggable="true"
+		 @dragstart="onDragStart"
+		 @dragover="onDragOver"
+		 @drop="onDrop">
 		<div v-if="editing" class="editing">
 			<textarea class="breakerTextArea" v-model="breaker.text"></textarea>
 		</div>
@@ -10,6 +13,7 @@
 </template>
 
 <script>
+	/* eslint no-mixed-spaces-and-tabs: 0*/
 	export default {
 		components: {},
 		props: {
@@ -39,6 +43,33 @@
 		},
 		methods:
 		{
+			getData()
+			{
+				return {
+					breaker: this.breaker,
+					rowNumber: this.rowNumber,
+					side: this.side
+				};
+			},
+			onDragStart(e)
+			{
+				e.dataTransfer.setData("text/plain", JSON.stringify(this.getData()));
+				e.dataTransfer.dropEffect = "move";
+				//console.log();
+			},
+			onDragOver(e)
+			{
+				e.preventDefault();
+				e.dataTransfer.dropEffect = "move";
+			},
+			onDrop(e)
+			{
+				e.preventDefault();
+				let srcBreaker = JSON.parse(e.dataTransfer.getData("text/plain"));
+				this.$emit("onMove", {
+					src: srcBreaker, dst: this.getData()
+				});
+			}
 		}
 	};
 </script>
