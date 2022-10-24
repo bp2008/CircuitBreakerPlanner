@@ -39,6 +39,7 @@
     <Content Include="src\components\Breaker.vue" />
     <Content Include="package.json" />
     <Content Include="README.md" />
+    <Content Include="src\EventBus.js" />
     <Content Include="vue.config.js">
       <SubType>Code</SubType>
     </Content>
