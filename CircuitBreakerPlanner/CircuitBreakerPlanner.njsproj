@@ -32,9 +32,12 @@
     <Content Include=".gitignore">
       <SubType>Code</SubType>
     </Content>
+    <Content Include="public\datamatrix.min.js" />
     <Content Include="public\favicon.ico" />
     <Content Include="public\index.html" />
     <Content Include="src\App.vue" />
+    <Content Include="public\lz-string.min.js" />
+    <Content Include="public\qrcode.js" />
     <Content Include="src\components\ProjectSelector.vue" />
     <Content Include="src\components\Breaker.vue" />
     <Content Include="package.json" />

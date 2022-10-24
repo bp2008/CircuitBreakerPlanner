@@ -31,7 +31,9 @@
 					<br>
 					<input type="button" class="ampButton" v-for="size in ampSizes" :key="size" :value="size" @click="selectedBreaker.amps = size" />
 				</div>
-				<div><label>Average Watts Used: <input type="range" v-model.number="selectedBreaker.averageWatts" :min="0" :max="Math.max(1, selectedBreaker.amps * 120)" /> {{Math.round(selectedBreaker.averageWatts)}} watts<span v-if="selectedBreaker.averageWatts > selectedBreaker.amps * 120 * 0.8"> (consider a larger breaker)</span></label></div>
+				<div>
+					<label>Average Watts Used: <input type="number" class="wattsNumberInput" v-model.number="selectedBreaker.averageWatts" :min="0" :max="Math.max(120, selectedBreaker.amps * 120)" /> watts<span v-if="selectedBreaker.averageWatts > selectedBreaker.amps * 120 * 0.8"> (consider a larger breaker)</span><br /><input type="range" v-model.number="selectedBreaker.averageWatts" :min="0" :max="Math.max(120, selectedBreaker.amps * 120)" /></label>
+				</div>
 			</div>
 			<div class="hideWhenPrinting">
 				<p>Total Watts Expected: {{totalOddWatts + totalEvenWatts}}</p>
@@ -41,6 +43,34 @@
 				<p><label><input type="checkbox" v-model="showRowNumbers" /> show row numbers</label></p>
 				<p><label><input type="checkbox" v-model="showBreakerNumbers" /> show breaker numbers</label></p>
 				<p><input type="button" value="Print" @click="print" /></p>
+				<p><input type="button" :value="showExport ? 'Hide Export Section' : 'Export Project'" @click="showExport = !showExport" /></p>
+				<div v-if="showExport" class="exportContainer">
+					<div class="exportStr">
+						<div class="textBlockSmall">{{exported.str}}</div> <input type="button" value="copy text" @click="copyExportedStr" /> or scan this QR code:
+					</div>
+					<p v-if="exported.svgError">QR Code could not be generated because of error: {{exported.svgError}}</p>
+					<div class="exportQr" v-if="exported.svg" v-html="exported.svg">
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="hideWhenPrinting">
+			<p><input type="button" :value="showImport ? 'Hide Import Section' : 'Import Project'" @click="showImport = !showImport" /></p>
+			<div v-if="showImport" class="importContainer">
+				<p class="importStr">
+					<label>String from earlier export: <input type="text" v-model="importText" /> <input type="button" value="Import" @click="importFromString" /></label>
+				</p>
+				<p class="importStatus">
+					{{importStatus}}
+				</p>
+				<p></p>
+				<p>
+					<input type="button" :value="showVideoImport ? 'Stop Scanning' : 'Scan QR with Camera'" @click="toggleQrImport" />
+				</p>
+				<div class="videoContainer" v-show="showVideoImport">
+					<label><input type="checkbox" v-model="mirrorVideo" /> mirror video display</label>
+					<video ref="videoEle" :class="{ videoEle: true, mirrorVideo: mirrorVideo }"></video>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -51,7 +81,8 @@
 	import ProjectSelector from './components/ProjectSelector.vue';
 	import Breaker from './components/Breaker.vue';
 	import localforage from 'localforage';
-	import EventBus from './EventBus.js'
+	import EventBus from './EventBus.js';
+	import QrScanner from 'qr-scanner';
 
 	export default {
 		components: { ProjectSelector, Breaker },
@@ -64,7 +95,13 @@
 				newName: "",
 				showAmpRatings: true,
 				showRowNumbers: true,
-				showBreakerNumbers: false
+				showBreakerNumbers: false,
+				showExport: false,
+				showImport: false,
+				importText: "",
+				showVideoImport: false,
+				qrScanner: null,
+				mirrorVideo: false
 			};
 		},
 		created()
@@ -138,44 +175,108 @@
 					arr.push(parseInt(size));
 				arr.sort((a, b) => a - b);
 				return arr;
+			},
+			exported()
+			{
+				if (this.currentProject && this.showExport)
+				{
+					try
+					{
+						// Make a slimmed-down copy of the project
+						let json = JSON.stringify(this.currentProject);
+						let copy = JSON.parse(json);
+						for (let i = 0; i < copy.rows.length; i++)
+							copy.rows[i] = compressRow(copy.rows[i]);
+
+						// Convert to JSON and compress
+						json = JSON.stringify(copy);
+						let compressed = window.LZString.compressToUint8Array(json);
+						let compressedStr = window.LZString.compressToEncodedURIComponent(json);
+						console.log(json.length, json);
+						console.log(compressed.length, compressed);
+						console.log(compressedStr.length, compressedStr);
+
+						// Create QR Code
+						let svg = "";
+						let svgError = "";
+						try
+						{
+							const QRC = window.qrcodegen.QrCode;
+							const qr0 = QRC.encodeBinary(compressed, QRC.Ecc.LOW);
+							svg = qrToSvgString(qr0, 4, "#FFFFFF", "#000000");
+						}
+						catch (ex)
+						{
+							svgError = ex;
+						}
+						return { svg: svg, svgError: svgError, str: compressedStr };
+					}
+					catch (ex)
+					{
+						console.error(ex);
+					}
+				}
+				return { svg: null, str: null };
+			},
+			importedProject()
+			{
+				if (this.importText)
+				{
+					let json = window.LZString.decompressFromEncodedURIComponent(this.importText);
+					let importedProject = JSON.parse(json);
+					return importedProject;
+				}
+				return null;
+			},
+			importStatus()
+			{
+				if (this.importedProject && this.importedProject.name && this.importedProject.rows)
+					return "Ready to import project: \"" + this.importedProject.name + "\"";
+				else
+					return "String is not a valid export";
 			}
 		},
 		methods:
 		{
 			onProjectLoad(projectName)
 			{
-				localforage.getItem('circuitBreakerPlannerProject_' + projectName)
-					.then(value =>
-					{
-						if (value)
+				if (this.currentProject && this.currentProject.name === projectName)
+					this.currentProject = null;
+				else
+				{
+					localforage.getItem('circuitBreakerPlannerProject_' + projectName)
+						.then(value =>
 						{
-							let loadedProject = value;
-							loadedProject.name = projectName;
-							this.currentProject = loadedProject;
-						}
-						else
-						{
-							let newProject = { name: projectName, rows: [] };
-							while (newProject.rows.length < 10)
-								newProject.rows.push(this.newRow());
-							newProject.showAmpRatings = this.showAmpRatings;
-							newProject.showRowNumbers = this.showRowNumbers;
-							newProject.showBreakerNumbers = this.showBreakerNumbers;
-							this.currentProject = newProject;
-						}
-						this.showAmpRatings = this.currentProject.showAmpRatings;
-						this.showRowNumbers = this.currentProject.showRowNumbers;
-						this.showBreakerNumbers = this.currentProject.showBreakerNumbers;
-						// Validate all breakers
-						for (let i = 0; i < this.currentProject.rows.length; i++)
-						{
-							let row = this.currentProject.rows[i];
-							this.fixBreakerErrors(row.left);
-							this.fixBreakerErrors(row.right);
-						}
-						// Reassign the index values for all breakers.
-						this.reassignBreakerIndexValues();
-					});
+							if (value)
+							{
+								let loadedProject = value;
+								loadedProject.name = projectName;
+								this.currentProject = loadedProject;
+							}
+							else
+							{
+								let newProject = { name: projectName, rows: [] };
+								while (newProject.rows.length < 10)
+									newProject.rows.push(this.newRow());
+								newProject.showAmpRatings = this.showAmpRatings;
+								newProject.showRowNumbers = this.showRowNumbers;
+								newProject.showBreakerNumbers = this.showBreakerNumbers;
+								this.currentProject = newProject;
+							}
+							this.showAmpRatings = this.currentProject.showAmpRatings;
+							this.showRowNumbers = this.currentProject.showRowNumbers;
+							this.showBreakerNumbers = this.currentProject.showBreakerNumbers;
+							// Validate all breakers
+							for (let i = 0; i < this.currentProject.rows.length; i++)
+							{
+								let row = this.currentProject.rows[i];
+								this.fixBreakerErrors(row.left);
+								this.fixBreakerErrors(row.right);
+							}
+							// Reassign the index values for all breakers.
+							this.reassignBreakerIndexValues();
+						});
+				}
 			},
 			reassignBreakerIndexValues()
 			{
@@ -311,6 +412,12 @@
 					else if (row.right.index === args.dst.index)
 						row.right = args.src;
 				}
+
+				if (EventBus.selectedBreakerIndex === args.src.index)
+					EventBus.selectedBreakerIndex = args.dst.index; // Should always happen
+				else if (EventBus.selectedBreakerIndex === args.dst.index)
+					EventBus.selectedBreakerIndex = args.src.index; // Should never happen
+
 				this.reassignBreakerIndexValues();
 			},
 			onNavKey(e)
@@ -336,6 +443,63 @@
 					EventBus.selectedBreakerIndex -= 2;
 				else if (y > 0 && EventBus.selectedBreakerIndex + 2 < this.currentProject.rows.length * 2)
 					EventBus.selectedBreakerIndex += 2;
+			},
+			copyExportedStr()
+			{
+				navigator.clipboard.writeText(this.exported.str);
+			},
+			importFromString()
+			{
+				for (let i = 0; i < this.projectNames.length; i++)
+				{
+					if (this.projectNames[i] === this.importedProject.name)
+					{
+						if (confirm("You already have a project named \"" + this.importedProject.name + "\". Overwrite it?"))
+						{
+							this.commitImport();
+						}
+						return;
+					}
+				}
+				this.commitImport();
+			},
+			commitImport()
+			{
+				let alreadyExists = false;
+				for (let i = 0; i < this.projectNames.length; i++)
+					if (this.projectNames[i] === this.importedProject.name)
+						alreadyExists = true;
+				if (!alreadyExists)
+				{
+					this.projectNames.push(this.importedProject.name);
+					this.projectNames.sort();
+				}
+				let copy = JSON.parse(JSON.stringify(this.importedProject));
+				// Uncompress copy (add missing fields)
+				for (let i = 0; i < copy.rows.length; i++)
+					copy.rows[i] = uncompressRow(copy.rows[i]);
+				this.currentProject = copy;
+				this.reassignBreakerIndexValues();
+				this.importText = "";
+				this.showImport = false;
+			},
+			toggleQrImport()
+			{
+				if (this.showVideoImport)
+				{
+					this.showVideoImport = false;
+					if (this.qrScanner)
+						this.qrScanner.stop();
+				}
+				else
+				{
+					this.showVideoImport = true;
+					this.qrScanner = new QrScanner(this.$refs.videoEle, result =>
+					{
+						console.log('decoded qr code:', result)
+					}, { returnDetailedScanResult: true });
+					this.qrScanner.start();
+				}
 			}
 		},
 		watch:
@@ -383,6 +547,59 @@
 			}
 		}
 	};
+	function compressRow(row)
+	{
+		row.left = compressBreaker(row.left);
+		row.right = compressBreaker(row.right);
+		return row;
+	}
+	function compressBreaker(breaker)
+	{
+		if (!breaker.name || breaker.name.trim() === "")
+			delete breaker.name;
+		if (!breaker.amps)
+			delete breaker.amps;
+		if (!breaker.averageWatts)
+			delete breaker.averageWatts;
+		return breaker;
+	}
+	function uncompressRow(row)
+	{
+		row.left = uncompressBreaker(row.left);
+		row.right = uncompressBreaker(row.right);
+		return row;
+	}
+	function uncompressBreaker(breaker)
+	{
+		if (!breaker.name)
+			breaker.name = "";
+		if (!breaker.amps)
+			breaker.amps = 0;
+		if (!breaker.averageWatts)
+			breaker.averageWatts = 0;
+		return breaker;
+	}
+	function qrToSvgString(qr, border, lightColor, darkColor)
+	{
+		if (border < 0)
+			throw new RangeError("Border must be non-negative");
+		let parts = [];
+		for (let y = 0; y < qr.size; y++)
+		{
+			for (let x = 0; x < qr.size; x++)
+			{
+				if (qr.getModule(x, y))
+					parts.push(`M${x + border},${y + border}h1v1h-1z`);
+			}
+		}
+		return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 ${qr.size + border * 2} ${qr.size + border * 2}" stroke="none">
+	<rect width="100%" height="100%" fill="${lightColor}"/>
+	<path d="${parts.join(" ")}" fill="${darkColor}"/>
+</svg>
+`;
+	}
 </script>
 
 <style scoped>
@@ -403,6 +620,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: baseline;
+		margin-bottom: 1em;
 	}
 
 		.panelTitleBar > *
@@ -419,7 +637,6 @@
 	{
 		font-size: 14pt;
 		font-weight: bold;
-		margin-bottom: 1em;
 	}
 
 	.breakerRow
@@ -473,17 +690,93 @@
 		{
 		}
 
-		.selectedBreakerEdit .ampsInput
+		.selectedBreakerEdit .ampsInput,
+		.selectedBreakerEdit .wattsNumberInput
 		{
 			width: 50px;
 			font-size: 14pt;
 			margin-bottom: 0.3em;
 		}
 
+		.selectedBreakerEdit .wattsNumberInput
+		{
+			width: 80px;
+			font-size: 14pt;
+		}
+
 		.selectedBreakerEdit .ampButton
 		{
 			margin-left: 0.5em;
 			font-size: 14pt;
+		}
+
+		.selectedBreakerEdit input[type="range"]
+		{
+			width: 100%;
+		}
+
+	.exportContainer
+	{
+		border-top: 1px solid black;
+		border-bottom: 1px solid black;
+	}
+
+	.exportStr
+	{
+		padding-top: 1em;
+		display: flex;
+		align-items: baseline;
+	}
+
+		.exportStr .textBlockSmall
+		{
+			display: inline-block;
+			border: 1px solid black;
+			padding: 2px;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			width: 160px;
+			user-select: all;
+		}
+
+		.exportStr input[type="button"]
+		{
+			margin-left: 0.5em;
+			margin-right: 0.5em;
+		}
+
+	.exportQr
+	{
+		text-align: center;
+		padding-top: 1em;
+		padding-bottom: 1em;
+	}
+
+		.exportQr /deep/ svg
+		{
+			width: 100%;
+			height: 100%;
+			max-width: 90vw;
+			max-height: 90vh;
+		}
+
+	.videoContainer
+	{
+		text-align: center;
+	}
+
+	.videoEle
+	{
+		width: 100%;
+		height: 100%;
+		max-width: 90vw;
+		max-height: 90vh;
+		transform: scale(1, 1) !important;
+	}
+		.videoEle.mirrorVideo
+		{
+			transform: scale(-1, 1) !important;
 		}
 
 	@media print
