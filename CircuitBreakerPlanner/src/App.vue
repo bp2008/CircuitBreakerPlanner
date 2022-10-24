@@ -5,30 +5,43 @@
 						 @projectload="onProjectLoad"
 						 @projectdelete="onProjectDelete"></ProjectSelector>
 		<div class="panel" v-if="currentProject">
-			<div class="panelTitleBar">
+			<div class="panelTitleBar hideWhenPrinting">
 				<span class="loadedProjectName">{{currentProject.name}}</span>
 				<input type="button" value="Add row" @click="addRow" />
 				<input type="button" value="Remove last row" @click="removeRow" />
-				<input type="button" value="Print" @click="print" />
 				<input type="button" value="Rename" @click="renameStart" :disabled="isRenaming" />
 				<label v-if="isRenaming">New name: <input type="text" v-model="newName" /></label>
 				<input v-if="isRenaming" type="button" value="save" @click="renameFinish" />
 			</div>
 			<div v-for="(row, index) in currentProject.rows" :key="index" class="breakerRow"
 				 @keydown.up.down.left.right.prevent="onNavKey">
-				<div class="rowNumber">{{index + 1}}</div>
-				<Breaker class="leftBreaker" :breaker="row.left" :rowNumber="index + 1" side="left" @onMove="onBreakerMove" />
-				<Breaker class="rightBreaker" :breaker="row.right" :rowNumber="index + 1" side="right" @onMove="onBreakerMove" />
+				<div class="rowNumber" v-if="showRowNumbers">{{index + 1}}</div>
+				<div class="rowNumber" v-if="showBreakerNumbers">{{row.left.index + 1}}</div>
+				<Breaker class="leftBreaker" :breaker="row.left" :showAmps="showAmpRatings" @onMove="onBreakerMove" />
+				<Breaker class="rightBreaker" :breaker="row.right" :showAmps="showAmpRatings" @onMove="onBreakerMove" />
+				<div class="rowNumber" v-if="showBreakerNumbers">{{row.right.index + 1}}</div>
 			</div>
-			<div v-if="selectedBreaker" class="selectedBreakerEdit">
+			<div v-if="selectedBreaker" class="selectedBreakerEdit hideWhenPrinting">
 				<div class="description">Breaker #{{selectedBreaker.index + 1}} is selected. This is the {{selectedBreaker.index % 2 == 0 ?'left':'right'}} breaker of row {{(selectedBreaker.index % 2 == 0 ? (selectedBreaker.index / 2) : ((selectedBreaker.index - 1) / 2)) + 1}}.</div>
 				<div><label>Label: <textarea class="breakerTextArea" v-model="selectedBreaker.text" /></label></div>
-				<div><label>Amps: <input type="number" v-model="selectedBreaker.amps" class="ampsInput" step="5" min="0" max="1000" /></label></div>
-				<div><label>Average Watts Used: <input type="range" v-model="selectedBreaker.averageWatts" :min="0" :max="selectedBreaker.amps * 120" /> {{Math.round(selectedBreaker.averageWatts)}} watts<span v-if="selectedBreaker.averageWatts > selectedBreaker.amps * 120 * 0.8"> (consider a larger breaker)</span></label></div>
+				<div>
+					<label>Amps: <input type="number" v-model="selectedBreaker.amps" class="ampsInput" step="5" min="0" max="1000" /></label>
+					<input type="button" class="ampButton" value=" - " @click="selectedBreaker.amps = Math.max(0, selectedBreaker.amps - 5)" />
+					<input type="button" class="ampButton" value=" + " @click="selectedBreaker.amps = Math.min(1000, selectedBreaker.amps + 5)" />
+					<br>
+					<input type="button" class="ampButton" v-for="size in ampSizes" :key="size" :value="size" @click="selectedBreaker.amps = size" />
+				</div>
+				<div><label>Average Watts Used: <input type="range" v-model.number="selectedBreaker.averageWatts" :min="0" :max="Math.max(1, selectedBreaker.amps * 120)" /> {{Math.round(selectedBreaker.averageWatts)}} watts<span v-if="selectedBreaker.averageWatts > selectedBreaker.amps * 120 * 0.8"> (consider a larger breaker)</span></label></div>
 			</div>
-			<p class="totals">Total Watts Expected: {{totalOddWatts + totalEvenWatts}}</p>
-			<p class="totals">Odd rows: {{totalOddWatts}} ({{(totalOddWatts / 120).toFixed(1)}} amps)</p>
-			<p class="totals">Even rows: {{totalEvenWatts}} ({{(totalEvenWatts / 120).toFixed(1)}} amps)</p>
+			<div class="hideWhenPrinting">
+				<p>Total Watts Expected: {{totalOddWatts + totalEvenWatts}}</p>
+				<p>Odd rows: {{totalOddWatts}} ({{(totalOddWatts / 120).toFixed(1)}} amps)</p>
+				<p>Even rows: {{totalEvenWatts}} ({{(totalEvenWatts / 120).toFixed(1)}} amps)</p>
+				<p><label><input type="checkbox" v-model="showAmpRatings" /> show amp ratings</label></p>
+				<p><label><input type="checkbox" v-model="showRowNumbers" /> show row numbers</label></p>
+				<p><label><input type="checkbox" v-model="showBreakerNumbers" /> show breaker numbers</label></p>
+				<p><input type="button" value="Print" @click="print" /></p>
+			</div>
 		</div>
 	</div>
 </template>
@@ -48,7 +61,10 @@
 				projectNames: [],
 				currentProject: null,
 				isRenaming: false,
-				newName: ""
+				newName: "",
+				showAmpRatings: true,
+				showRowNumbers: true,
+				showBreakerNumbers: false
 			};
 		},
 		created()
@@ -73,8 +89,10 @@
 				for (let i = 0; i < this.currentProject.rows.length; i += 2)
 				{
 					let row = this.currentProject.rows[i];
-					total += row.left.averageWatts;
-					total += row.right.averageWatts;
+					if (row.left.amps > 0)
+						total += row.left.averageWatts;
+					if (row.right.amps > 0)
+						total += row.right.averageWatts;
 				}
 				return Math.round(total);
 			},
@@ -84,8 +102,10 @@
 				for (let i = 1; i < this.currentProject.rows.length; i += 2)
 				{
 					let row = this.currentProject.rows[i];
-					total += row.left.averageWatts;
-					total += row.right.averageWatts;
+					if (row.left.amps > 0)
+						total += row.left.averageWatts;
+					if (row.right.amps > 0)
+						total += row.right.averageWatts;
 				}
 				return Math.round(total);
 			},
@@ -103,6 +123,21 @@
 			selectedBreaker()
 			{
 				return this.breakersByIndex[EventBus.selectedBreakerIndex];
+			},
+			ampSizes()
+			{
+				let sizes = { 0: true, 15: true, 20: true, 30: true, 40: true, 50: true, 60: true };
+				for (let i = 0; i < this.currentProject.rows.length; i++)
+				{
+					let row = this.currentProject.rows[i];
+					sizes[row.left.amps] = true;
+					sizes[row.right.amps] = true;
+				}
+				let arr = [];
+				for (let size in sizes)
+					arr.push(parseInt(size));
+				arr.sort((a, b) => a - b);
+				return arr;
 			}
 		},
 		methods:
@@ -116,8 +151,6 @@
 						{
 							let loadedProject = value;
 							loadedProject.name = projectName;
-							for (let i = 0; i < loadedProject.rows.length; i++)
-								loadedProject.rows[i].left.selected = loadedProject.rows[i].right.selected = false;
 							this.currentProject = loadedProject;
 						}
 						else
@@ -125,19 +158,33 @@
 							let newProject = { name: projectName, rows: [] };
 							while (newProject.rows.length < 10)
 								newProject.rows.push(this.newRow());
+							newProject.showAmpRatings = this.showAmpRatings;
+							newProject.showRowNumbers = this.showRowNumbers;
+							newProject.showBreakerNumbers = this.showBreakerNumbers;
 							this.currentProject = newProject;
 						}
+						this.showAmpRatings = this.currentProject.showAmpRatings;
+						this.showRowNumbers = this.currentProject.showRowNumbers;
+						this.showBreakerNumbers = this.currentProject.showBreakerNumbers;
 						// Validate all breakers
-						// Reassign the index values for all breakers.
 						for (let i = 0; i < this.currentProject.rows.length; i++)
 						{
 							let row = this.currentProject.rows[i];
 							this.fixBreakerErrors(row.left);
 							this.fixBreakerErrors(row.right);
-							row.left.index = i * 2;
-							row.right.index = (i * 2) + 1;
 						}
+						// Reassign the index values for all breakers.
+						this.reassignBreakerIndexValues();
 					});
+			},
+			reassignBreakerIndexValues()
+			{
+				for (let i = 0; i < this.currentProject.rows.length; i++)
+				{
+					let row = this.currentProject.rows[i];
+					row.left.index = i * 2;
+					row.right.index = (i * 2) + 1;
+				}
 			},
 			fixBreakerErrors(breaker)
 			{
@@ -171,11 +218,16 @@
 				{
 					let idx = this.currentProject.rows.length - 1;
 					let lastRow = this.currentProject.rows[idx];
-					if (!lastRow.text && !lastRow.amps && !lastRow.averageWatts)
+					if ((this.breakerSlotEmpty(lastRow.left) && this.breakerSlotEmpty(lastRow.right))
+						|| confirm("Bottom row is not empty.  Confirm you wish to delete the bottom row and its breakers."))
+					{
 						this.currentProject.rows.splice(idx, 1);
-					else
-						alert("Bottom row must be empty in order to remove it.");
+					}
 				}
+			},
+			breakerSlotEmpty(breaker)
+			{
+				return !breaker.text.trim() && breaker.amps === 0 && breaker.averageWatts === 0;
 			},
 			print()
 			{
@@ -183,22 +235,23 @@
 			},
 			newRow()
 			{
-				return { left: this.newRandomBreaker(), right: this.newRandomBreaker() }
+				let idx = this.currentProject ? (this.currentProject.rows.length * 2) : 0;
+				return { left: this.newBreaker(idx), right: this.newBreaker(idx + 1) }
 			},
-			newBreaker()
+			newBreaker(index)
 			{
-				return { text: "", amps: 0, averageWatts: 0, breakerIndex: 0 };
+				return { text: "", amps: 0, averageWatts: 0, index: index };
 			},
-			newRandomBreaker()
-			{
-				return {
-					text: Math.round((Math.random() * 99999) + 100000).toString(),
-					amps: 15 + Math.round(Math.random() * 9) * 5,
-					averageWatts: Math.random() * 1000,
-					selected: false,
-					breakerIndex: 0
-				};
-			},
+			//newRandomBreaker()
+			//{
+			//	return {
+			//		text: Math.round((Math.random() * 99999) + 100000).toString(),
+			//		amps: 15 + Math.round(Math.random() * 9) * 5,
+			//		averageWatts: Math.random() * 1000,
+			//		selected: false,
+			//		index: index
+			//	};
+			//},
 			compareBreakers(a, b)
 			{
 				if (a.text < b.text)
@@ -239,7 +292,7 @@
 			onBreakerMove(args)
 			{
 				console.log("onBreakerMove", args);
-				if (this.compareBreakers(args.src, args.dst) === 0)
+				if (args.src.index === args.dst.index)
 				{
 					console.log("Move had no effect.");
 					return;
@@ -248,16 +301,17 @@
 				{
 					let row = this.currentProject.rows[i];
 
-					if (this.compareBreakers(row.left, args.src) === 0)
+					if (row.left.index === args.src.index)
 						row.left = args.dst;
-					else if (this.compareBreakers(row.left, args.dst) === 0)
+					else if (row.left.index === args.dst.index)
 						row.left = args.src;
 
-					if (this.compareBreakers(row.right, args.src) === 0)
+					if (row.right.index === args.src.index)
 						row.right = args.dst;
-					else if (this.compareBreakers(row.right, args.dst) === 0)
+					else if (row.right.index === args.dst.index)
 						row.right = args.src;
 				}
+				this.reassignBreakerIndexValues();
 			},
 			onNavKey(e)
 			{
@@ -310,6 +364,22 @@
 						localforage.removeItem('circuitBreakerPlannerCurrentProjectName');
 					}
 				}
+			},
+			showAmpRatings()
+			{
+				this.currentProject.showAmpRatings = this.showAmpRatings;
+			},
+			showRowNumbers()
+			{
+				if (this.showRowNumbers)
+					this.showBreakerNumbers = false;
+				this.currentProject.showRowNumbers = this.showRowNumbers;
+			},
+			showBreakerNumbers()
+			{
+				if (this.showBreakerNumbers)
+					this.showRowNumbers = false;
+				this.currentProject.showBreakerNumbers = this.showBreakerNumbers;
 			}
 		}
 	};
@@ -386,16 +456,33 @@
 		border: inset;
 		padding: 2px 5px;
 		margin: 1em 0px;
+		font-size: 14pt;
 	}
+
+		.selectedBreakerEdit > *
+		{
+			margin-bottom: 1em;
+		}
+
+			.selectedBreakerEdit > *:last-child
+			{
+				margin-bottom: 0px;
+			}
 
 		.selectedBreakerEdit .description
 		{
-			margin-bottom: 0.5em;
 		}
 
 		.selectedBreakerEdit .ampsInput
 		{
 			width: 50px;
+			font-size: 14pt;
+			margin-bottom: 0.3em;
+		}
+
+		.selectedBreakerEdit .ampButton
+		{
+			margin-left: 0.5em;
 			font-size: 14pt;
 		}
 
@@ -408,17 +495,7 @@
 			border: none;
 		}
 
-		.panelTitleBar
-		{
-			display: none;
-		}
-
-		.selectedBreakerEdit
-		{
-			display: none;
-		}
-
-		.totals
+		.hideWhenPrinting
 		{
 			display: none;
 		}

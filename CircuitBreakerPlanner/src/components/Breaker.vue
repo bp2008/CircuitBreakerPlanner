@@ -9,7 +9,7 @@
 		 @drop="onDrop"
 		 @click="toggleSelection"
 		 tabindex="0">
-		<div class="breakerAmpDisplay">
+		<div class="breakerAmpDisplay" v-if="showAmps && breaker.amps">
 			{{breaker.amps}}
 		</div>
 		<div class="breakerTextDisplay">
@@ -29,13 +29,9 @@
 				type: Object,
 				required: true
 			},
-			rowNumber: {
-				type: Number,
-				required: true
-			},
-			side: {
-				type: String,
-				required: true
+			showAmps: {
+				type: Boolean,
+				default: true
 			}
 		},
 		data()
@@ -52,10 +48,20 @@
 		},
 		computed:
 		{
+			//rowNumber()
+			//{
+			//	return this.breaker.index % 2 == 0 ? this.breaker.index / 2 : this.breaker.index;
+			//},
+			//side()
+			//{
+			//	return this.breaker.index % 2 == 0 ? "left" : "right";
+			//},
 			breakerStyle()
 			{
 				let fillColor = '#FFAAAA';
 				let wattSustainedCapacity = 120 * 0.8 * this.breaker.amps;
+				if (wattSustainedCapacity <= 0)
+					return "";
 				let wattPercent = this.breaker.averageWatts / wattSustainedCapacity;
 				if (wattPercent < 0)
 					wattPercent = 0;
@@ -72,25 +78,18 @@
 		},
 		methods:
 		{
-			getData()
-			{
-				return {
-					breaker: this.breaker,
-					rowNumber: this.rowNumber,
-					side: this.side
-				};
-			},
 			onDragStart(e)
 			{
-				e.dataTransfer.setData("text/plain", JSON.stringify(this.getData()));
+				e.dataTransfer.setData("text/plain", JSON.stringify(this.breaker));
 				e.dataTransfer.dropEffect = "move";
+				if (!this.selected)
+					this.toggleSelection();
 				//console.log();
 			},
 			onDragEnter(e)
 			{
 				// Not reliable in Chrome. Gets called unnecessarily.
 				e.preventDefault();
-				e.dataTransfer.setData("text/plain", JSON.stringify(this.getData()));
 				e.dataTransfer.dropEffect = "move";
 				this.draggingOver = true;
 			},
@@ -111,7 +110,7 @@
 				this.draggingOver = false;
 				let srcBreaker = JSON.parse(e.dataTransfer.getData("text/plain"));
 				this.$emit("onMove", {
-					src: srcBreaker, dst: this.getData()
+					src: srcBreaker, dst: this.breaker
 				});
 			},
 			toggleSelection()
@@ -140,12 +139,13 @@
 
 	.draggingOver
 	{
-		background-color: rgba(0,0,0,0.25);
+		outline: 4px outset #00FF00;
+		z-index: 2;
 	}
 
 	.isSelected
 	{
-		outline: 2px solid #0099FF;
+		outline: 4px outset #0099FF;
 	}
 
 	.breakerAmpDisplay
