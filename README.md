@@ -13,6 +13,7 @@ Host on your own web server or access the planner on github.io here: [Circuit Br
 * Application is JavaScript based and can be run in any modern web browser.  Run via any basic web server, or without a web server (open `dist/index.html`).
 * Support for multiple electrical panel projects, e.g. one for your house, one for your workshop.
 * Import and export projects as a string or QR code to share them between devices or to back them up.
+* Flashy modern UI design.
 
 ## Implementation Details
 
