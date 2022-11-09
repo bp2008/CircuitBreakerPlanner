@@ -57,19 +57,22 @@
 		<div class="hideWhenPrinting">
 			<p><input type="button" :value="showImport ? 'Hide Import Section' : 'Import Project'" @click="showImport = !showImport" /></p>
 			<div v-if="showImport" class="importContainer">
+				<p>There are two ways to import.</p>
 				<p class="importStr">
-					<label>String from earlier export: <input type="text" v-model="importText" /> <input type="button" value="Import" @click="importFromString" /></label>
+					1. <label>Paste the string from an earlier export: <input type="text" v-model="importText" /></label>
 				</p>
+				<p>
+					2. If you have a camera connected, <input type="button" :value="showVideoImport ? 'Stop Scanning' : 'Scan QR with Camera'" @click="toggleQrImport" />
+				</p>
+				<p>When a valid string has been entered or a valid QR code has been scanned, an Import button will appear below:</p>
 				<p class="importStatus">
 					{{importStatus}}
 				</p>
-				<p></p>
-				<p>
-					<input type="button" :value="showVideoImport ? 'Stop Scanning' : 'Scan QR with Camera'" @click="toggleQrImport" />
-				</p>
+				<p v-if="importReady"><input type="button" value="Import" @click="importBtnClicked" /></p>
 				<div class="videoContainer" v-show="showVideoImport">
-					<label><input type="checkbox" v-model="mirrorVideo" /> mirror video display</label>
-					<video ref="videoEle" :class="{ videoEle: true, mirrorVideo: mirrorVideo }"></video>
+					<p>Note, getting a QR code to scan can be a bit frustrating. Try bringing the camera closer or further away. The code should not usually be very large in the camera's view.</p>
+					<p><label><input type="checkbox" v-model="mirrorVideo" /> mirror video display</label></p>
+					<video ref="videoEle" :class="{ videoEle: true, mirrorVideo: mirrorVideo, importReady: importReady }"></video>
 				</div>
 			</div>
 		</div>
@@ -82,7 +85,7 @@
 	import Breaker from './components/Breaker.vue';
 	import localforage from 'localforage';
 	import EventBus from './EventBus.js';
-	import QrScanner from 'qr-scanner';
+	import QrScanner from './criteo-forks-qr-scanner/qr-scanner.min.js';
 
 	export default {
 		components: { ProjectSelector, Breaker },
@@ -99,6 +102,7 @@
 				showExport: false,
 				showImport: false,
 				importText: "",
+				importData: null,
 				showVideoImport: false,
 				qrScanner: null,
 				mirrorVideo: false
@@ -192,9 +196,9 @@
 						json = JSON.stringify(copy);
 						let compressed = window.LZString.compressToUint8Array(json);
 						let compressedStr = window.LZString.compressToEncodedURIComponent(json);
-						console.log(json.length, json);
-						console.log(compressed.length, compressed);
-						console.log(compressedStr.length, compressedStr);
+						//console.log(json.length, json);
+						//console.log(compressed.length, compressed);
+						//console.log(compressedStr.length, compressedStr);
 
 						// Create QR Code
 						let svg = "";
@@ -226,14 +230,28 @@
 					let importedProject = JSON.parse(json);
 					return importedProject;
 				}
+				if (this.importData)
+				{
+					let json = window.LZString.decompressFromUint8Array(this.importData);
+					let importedProject = JSON.parse(json);
+					return importedProject;
+				}
 				return null;
+			},
+			importReady()
+			{
+				return this.importedProject && this.importedProject.name && this.importedProject.rows;
 			},
 			importStatus()
 			{
-				if (this.importedProject && this.importedProject.name && this.importedProject.rows)
+				if (this.importReady)
 					return "Ready to import project: \"" + this.importedProject.name + "\"";
+				else if (this.importText)
+					return "String is not a valid export.";
+				else if (this.importData)
+					return "QR code is not a valid export.";
 				else
-					return "String is not a valid export";
+					return "Please paste a string or scan a QR code.";
 			}
 		},
 		methods:
@@ -448,7 +466,7 @@
 			{
 				navigator.clipboard.writeText(this.exported.str);
 			},
-			importFromString()
+			importBtnClicked()
 			{
 				for (let i = 0; i < this.projectNames.length; i++)
 				{
@@ -481,10 +499,12 @@
 				this.currentProject = copy;
 				this.reassignBreakerIndexValues();
 				this.importText = "";
+				this.importData = null;
 				this.showImport = false;
 			},
 			toggleQrImport()
 			{
+				this.importData = null;
 				if (this.showVideoImport)
 				{
 					this.showVideoImport = false;
@@ -497,6 +517,8 @@
 					this.qrScanner = new QrScanner(this.$refs.videoEle, result =>
 					{
 						console.log('decoded qr code:', result)
+						this.importText = null;
+						this.importData = result.bytes;
 					}, { returnDetailedScanResult: true });
 					this.qrScanner.start();
 				}
@@ -773,11 +795,28 @@
 		max-width: 90vw;
 		max-height: 90vh;
 		transform: scale(1, 1) !important;
+		border: 5px solid #FF0000;
 	}
+
 		.videoEle.mirrorVideo
 		{
 			transform: scale(-1, 1) !important;
 		}
+
+		.videoEle.importReady
+		{
+			border: 5px solid #00FF00;
+		}
+
+	.importStatus
+	{
+		font-size: 1.2em;
+		/*font-style: italic;*/
+		/*color: #006600;*/
+		border: 2px dashed #FF9900;
+		display: inline-block;
+		padding: 4px 12px;
+	}
 
 	@media print
 	{

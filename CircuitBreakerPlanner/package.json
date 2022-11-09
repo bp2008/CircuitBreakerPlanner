@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "localforage": "1.10.0",
-    "qr-scanner": "1.4.1",
     "vue": "2.6.12"
   },
   "devDependencies": {
