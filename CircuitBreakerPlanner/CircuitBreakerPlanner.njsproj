@@ -4,6 +4,11 @@
     <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>
     <Name>CircuitBreakerPlanner</Name>
     <RootNamespace>CircuitBreakerPlanner</RootNamespace>
+    <SaveNodeJsSettingsInProjectFile>True</SaveNodeJsSettingsInProjectFile>
+    <Environment>
+    </Environment>
+    <NodeExeArguments>
+    </NodeExeArguments>
   </PropertyGroup>
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -11,16 +16,17 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>1ac60b8f-6638-4ce3-adda-917bf01c903a</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>node_modules\@vue\cli-service\bin\vue-cli-service.js</StartupFile>
+    <StartupFile>node_modules\vite\bin\vite.js</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <ProjectTypeGuids>{3AF33F2E-1136-4D97-BBB7-1795711AC8B8};{349c5851-65df-11da-9384-00065b846f21};{9092AA53-FB77-4645-B42D-1CCCA6BD08BD}</ProjectTypeGuids>
-    <NodejsPort>1337</NodejsPort>
-    <StartWebBrowser>true</StartWebBrowser>
-    <ScriptArguments>serve</ScriptArguments>
+    <NodejsPort>5173</NodejsPort>
+    <StartWebBrowser>True</StartWebBrowser>
+    <ScriptArguments>
+    </ScriptArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -32,20 +38,19 @@
     <Content Include=".gitignore">
       <SubType>Code</SubType>
     </Content>
+    <Content Include="package.json" />
     <Content Include="public\datamatrix.min.js" />
     <Content Include="public\favicon.ico" />
-    <Content Include="public\index.html" />
+    <Content Include="index.html" />
     <Content Include="src\App.vue" />
     <Content Include="public\lz-string.min.js" />
     <Content Include="public\qrcode.js" />
     <Content Include="src\components\ProjectSelector.vue" />
     <Content Include="src\components\Breaker.vue" />
-    <Content Include="package.json" />
     <Content Include="README.md" />
-    <Content Include="src\EventBus.js" />
-    <Content Include="vue.config.js">
-      <SubType>Code</SubType>
-    </Content>
+    <Content Include="src\textFit.js" />
+    <Content Include="src\store.js" />
+    <Content Include="vite.config.js" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="dist\" />

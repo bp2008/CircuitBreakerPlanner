@@ -23,7 +23,7 @@
 			</div>
 			<div v-if="selectedBreaker" class="selectedBreakerEdit hideWhenPrinting">
 				<div class="description">Breaker #{{selectedBreaker.index + 1}} is selected. This is the {{selectedBreaker.index % 2 == 0 ?'left':'right'}} breaker of row {{(selectedBreaker.index % 2 == 0 ? (selectedBreaker.index / 2) : ((selectedBreaker.index - 1) / 2)) + 1}}.</div>
-				<div><label>Label: <textarea class="breakerTextArea" v-model="selectedBreaker.text" /></label></div>
+				<div><label>Label: <textarea :class="{ breakerTextArea: true, withAmps: showAmpRatings }" v-model="selectedBreaker.text" ref="breakerTextArea" v-bind:style="breakerTextAreaStyle" /></label></div>
 				<div>
 					<label>Amps: <input type="number" v-model="selectedBreaker.amps" class="ampsInput" step="5" min="0" max="1000" /></label>
 					<input type="button" class="ampButton" value=" - " @click="selectedBreaker.amps = Math.max(0, selectedBreaker.amps - 5)" />
@@ -84,8 +84,10 @@
 	import ProjectSelector from './components/ProjectSelector.vue';
 	import Breaker from './components/Breaker.vue';
 	import localforage from 'localforage';
-	import EventBus from './EventBus.js';
+	import store from '/src/store.js';
 	import QrScanner from './criteo-forks-qr-scanner/qr-scanner.min.js';
+	import { toRaw } from 'vue'
+	import { fitTextToBox } from '/src/textFit.js';
 
 	export default {
 		components: { ProjectSelector, Breaker },
@@ -105,7 +107,8 @@
 				importData: null,
 				showVideoImport: false,
 				qrScanner: null,
-				mirrorVideo: false
+				mirrorVideo: false,
+				breakerTextAreaStyle: { fontSize: "16px" }
 			};
 		},
 		created()
@@ -163,7 +166,10 @@
 			},
 			selectedBreaker()
 			{
-				return this.breakersByIndex[EventBus.selectedBreakerIndex];
+				if (this.currentProject)
+					return this.breakersByIndex[store.selectedBreakerIndex];
+				else
+					return null;
 			},
 			ampSizes()
 			{
@@ -252,6 +258,10 @@
 					return "QR code is not a valid export.";
 				else
 					return "Please paste a string or scan a QR code.";
+			},
+			selectedBreakerText()
+			{
+				return this.selectedBreaker ? this.selectedBreaker.text : "";
 			}
 		},
 		methods:
@@ -431,10 +441,10 @@
 						row.right = args.src;
 				}
 
-				if (EventBus.selectedBreakerIndex === args.src.index)
-					EventBus.selectedBreakerIndex = args.dst.index; // Should always happen
-				else if (EventBus.selectedBreakerIndex === args.dst.index)
-					EventBus.selectedBreakerIndex = args.src.index; // Should never happen
+				if (store.selectedBreakerIndex === args.src.index)
+					store.selectedBreakerIndex = args.dst.index; // Should always happen
+				else if (store.selectedBreakerIndex === args.dst.index)
+					store.selectedBreakerIndex = args.src.index; // Should never happen
 
 				this.reassignBreakerIndexValues();
 			},
@@ -451,16 +461,16 @@
 			},
 			navDirection(x, y)
 			{
-				if (EventBus.selectedBreakerIndex < 0)
+				if (store.selectedBreakerIndex < 0)
 					return;
-				if (x < 0 && EventBus.selectedBreakerIndex % 2 == 1)
-					EventBus.selectedBreakerIndex--;
-				else if (x > 0 && EventBus.selectedBreakerIndex % 2 == 0)
-					EventBus.selectedBreakerIndex++;
-				else if (y < 0 && EventBus.selectedBreakerIndex >= 2)
-					EventBus.selectedBreakerIndex -= 2;
-				else if (y > 0 && EventBus.selectedBreakerIndex + 2 < this.currentProject.rows.length * 2)
-					EventBus.selectedBreakerIndex += 2;
+				if (x < 0 && store.selectedBreakerIndex % 2 == 1)
+					store.selectedBreakerIndex--;
+				else if (x > 0 && store.selectedBreakerIndex % 2 == 0)
+					store.selectedBreakerIndex++;
+				else if (y < 0 && store.selectedBreakerIndex >= 2)
+					store.selectedBreakerIndex -= 2;
+				else if (y > 0 && store.selectedBreakerIndex + 2 < this.currentProject.rows.length * 2)
+					store.selectedBreakerIndex += 2;
 			},
 			copyExportedStr()
 			{
@@ -522,6 +532,16 @@
 					}, { returnDetailedScanResult: true });
 					this.qrScanner.start();
 				}
+			},
+			setBreakerTextAreaSize()
+			{
+				this.$nextTick(() =>
+				{
+					if (this.$refs.breakerTextArea)
+					{
+						this.breakerTextAreaStyle.fontSize = fitTextToBox("#app", 36, this.$refs.breakerTextArea, this.selectedBreakerText);
+					}
+				});
 			}
 		},
 		watch:
@@ -531,7 +551,7 @@
 				handler()
 				{
 					if (this.projectNames)
-						localforage.setItem('circuitBreakerPlannerProjectNames', this.projectNames);
+						localforage.setItem('circuitBreakerPlannerProjectNames', toRaw(this.projectNames));
 				}
 			},
 			currentProject: {
@@ -541,8 +561,8 @@
 					if (this.currentProject)
 					{
 						console.log("currentProject is ", this.currentProject.name);
-						localforage.setItem('circuitBreakerPlannerCurrentProjectName', this.currentProject.name);
-						localforage.setItem('circuitBreakerPlannerProject_' + this.currentProject.name, this.currentProject);
+						localforage.setItem('circuitBreakerPlannerCurrentProjectName', toRaw(this.currentProject.name));
+						localforage.setItem('circuitBreakerPlannerProject_' + toRaw(this.currentProject.name), toRaw(this.currentProject));
 					}
 					else
 					{
@@ -554,6 +574,7 @@
 			showAmpRatings()
 			{
 				this.currentProject.showAmpRatings = this.showAmpRatings;
+				this.setBreakerTextAreaSize();
 			},
 			showRowNumbers()
 			{
@@ -566,6 +587,14 @@
 				if (this.showBreakerNumbers)
 					this.showRowNumbers = false;
 				this.currentProject.showBreakerNumbers = this.showBreakerNumbers;
+			},
+			selectedBreaker()
+			{
+				this.setBreakerTextAreaSize();
+			},
+			selectedBreakerText()
+			{
+				this.setBreakerTextAreaSize();
 			}
 		}
 	};
@@ -679,16 +708,23 @@
 	.breakerTextArea
 	{
 		font-family: Arial, Helvetica, sans-serif;
-		font-size: 12pt;
+		font-size: 16px;
 		padding: 2px 5px;
-		line-height: 18px;
-		width: 119px;
+		width: 162px;
 		height: 42px;
 		border: 1px solid #000000;
 		box-sizing: border-box;
 		resize: none;
 		text-align: center;
+		overflow: hidden;
+		word-break: break-word;
+		white-space: pre-wrap;
 	}
+
+		.breakerTextArea.withAmps
+		{
+			width: 119px;
+		}
 
 	.selectedBreakerEdit
 	{

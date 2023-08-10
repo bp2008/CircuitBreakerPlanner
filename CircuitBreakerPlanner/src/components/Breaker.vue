@@ -9,10 +9,10 @@
 		 @drop="onDrop"
 		 @click="toggleSelection"
 		 tabindex="0">
-		<div class="breakerAmpDisplay" v-if="showAmps && breaker.amps">
+		<div class="breakerAmpDisplay" v-if="showAmpsEle">
 			{{breaker.amps}}
 		</div>
-		<div class="breakerTextDisplay">
+		<div class="breakerTextDisplay" v-bind:style="textDisplayStyle" ref="breakerTextDisplay">
 			{{breaker.text}}
 		</div>
 	</div>
@@ -20,7 +20,8 @@
 
 <script>
 	/* eslint no-mixed-spaces-and-tabs: 0, no-unused-vars: 0 */
-	import EventBus from '../EventBus.js'
+	import store from '/src/store.js'
+	import { fitTextToBox } from '/src/textFit.js';
 
 	export default {
 		components: {},
@@ -37,14 +38,17 @@
 		data()
 		{
 			return {
-				textInput: "",
 				editing: false,
-				draggingOver: false
+				draggingOver: false,
+				textDisplayStyle: { fontSize: "16px" }
 			};
 		},
 		created()
 		{
-			this.textInput = this.breaker.text;
+		},
+		mounted()
+		{
+			this.setTextSize();
 		},
 		computed:
 		{
@@ -73,7 +77,15 @@
 			},
 			selected()
 			{
-				return this.breaker.index === EventBus.selectedBreakerIndex;
+				return this.breaker.index === store.selectedBreakerIndex;
+			},
+			breakerText()
+			{
+				return this.breaker.text;
+			},
+			showAmpsEle()
+			{
+				return this.showAmps && this.breaker.amps;
 			}
 		},
 		methods:
@@ -115,10 +127,31 @@
 			},
 			toggleSelection()
 			{
-				if (EventBus.selectedBreakerIndex === this.breaker.index)
-					EventBus.selectedBreakerIndex = -1;
+				if (store.selectedBreakerIndex === this.breaker.index)
+					store.selectedBreakerIndex = -1;
 				else
-					EventBus.selectedBreakerIndex = this.breaker.index;
+					store.selectedBreakerIndex = this.breaker.index;
+			},
+			setTextSize()
+			{
+				this.$nextTick(() =>
+				{
+					if (this.$refs.breakerTextDisplay)
+					{
+						this.textDisplayStyle.fontSize = fitTextToBox("#app", 36, this.$refs.breakerTextDisplay, this.breakerText);
+					}
+				});
+			}
+		},
+		watch:
+		{
+			breakerText()
+			{
+				this.setTextSize();
+			},
+			showAmpsEle()
+			{
+				this.setTextSize();
 			}
 		}
 	};
@@ -164,9 +197,11 @@
 	{
 		flex: 1 1 auto;
 		padding: 2px 5px;
-		line-height: 18px;
+		/*line-height: 18px;*/
 		box-sizing: border-box;
 		text-align: center;
+		word-break: break-word;
+		white-space: pre-wrap;
 	}
 
 	.editing
