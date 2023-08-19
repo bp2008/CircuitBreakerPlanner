@@ -50,10 +50,12 @@
     <Content Include="README.md" />
     <Content Include="src\textFit.js" />
     <Content Include="src\store.js" />
+    <Content Include="src\util.js">
+      <SubType>Code</SubType>
+    </Content>
     <Content Include="vite.config.js" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="dist\" />
     <Folder Include="public\" />
     <Folder Include="src\" />
     <Folder Include="src\assets\" />

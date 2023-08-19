@@ -8,7 +8,8 @@
 		 @dragover="onDragOver"
 		 @drop="onDrop"
 		 @click="toggleSelection"
-		 tabindex="0">
+		 tabindex="0"
+		 ref="myElement">
 		<div class="breakerAmpDisplay" v-if="showAmpsEle">
 			{{breaker.amps}}
 		</div>
@@ -22,6 +23,7 @@
 	/* eslint no-mixed-spaces-and-tabs: 0, no-unused-vars: 0 */
 	import store from '/src/store.js'
 	import { fitTextToBox } from '/src/textFit.js';
+	import { throttle } from '/src/util.js';
 
 	export default {
 		components: {},
@@ -40,15 +42,24 @@
 			return {
 				editing: false,
 				draggingOver: false,
-				textDisplayStyle: { fontSize: "16px" }
+				textDisplayStyle: { fontSize: "16px" },
+				resizeObserver: null,
+				throttledOnResize: function () { }
 			};
 		},
 		created()
 		{
+			this.throttledOnResize = throttle(this.onResize, 200);
 		},
 		mounted()
 		{
 			this.setTextSize();
+			this.resizeObserver = new ResizeObserver(this.throttledOnResize);
+			this.resizeObserver.observe(this.$refs.myElement);
+		},
+		beforeUnmount()
+		{
+			this.resizeObserver.unobserve(this.$refs.myElement);
 		},
 		computed:
 		{
@@ -131,6 +142,10 @@
 					store.selectedBreakerIndex = -1;
 				else
 					store.selectedBreakerIndex = this.breaker.index;
+			},
+			onResize()
+			{
+				this.setTextSize();
 			},
 			setTextSize()
 			{

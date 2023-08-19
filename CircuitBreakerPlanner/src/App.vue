@@ -59,10 +59,12 @@
 			<div v-if="showImport" class="importContainer">
 				<p>There are two ways to import.</p>
 				<p class="importStr">
-					1. <label>Paste the string from an earlier export: <input type="text" v-model="importText" /></label>
+					1. <label>Paste the string from an earlier export:<br />
+					<input type="text" v-model="importText" /></label> <input type="button" value="<- Clear" @click="importText = ''"/>
 				</p>
 				<p>
-					2. If you have a camera connected, <input type="button" :value="showVideoImport ? 'Stop Scanning' : 'Scan QR with Camera'" @click="toggleQrImport" />
+					2. If you have a camera connected:<br />
+					<input type="button" :value="showVideoImport ? 'Stop Scanning' : 'Scan QR with Camera'" @click="toggleQrImport" />
 				</p>
 				<p>When a valid string has been entered or a valid QR code has been scanned, an Import button will appear below:</p>
 				<p class="importStatus">
@@ -230,17 +232,24 @@
 			},
 			importedProject()
 			{
-				if (this.importText)
+				try
 				{
-					let json = window.LZString.decompressFromEncodedURIComponent(this.importText);
-					let importedProject = JSON.parse(json);
-					return importedProject;
+					if (this.importText)
+					{
+						let json = window.LZString.decompressFromEncodedURIComponent(this.importText.trim());
+						let importedProject = JSON.parse(json);
+						return importedProject;
+					}
+					if (this.importData)
+					{
+						let json = window.LZString.decompressFromUint8Array(this.importData);
+						let importedProject = JSON.parse(json);
+						return importedProject;
+					}
 				}
-				if (this.importData)
+				catch (ex)
 				{
-					let json = window.LZString.decompressFromUint8Array(this.importData);
-					let importedProject = JSON.parse(json);
-					return importedProject;
+					console.debug(ex);
 				}
 				return null;
 			},
@@ -560,13 +569,13 @@
 				{
 					if (this.currentProject)
 					{
-						console.log("currentProject is ", this.currentProject.name);
+						console.log("currentProject is", this.currentProject.name);
 						localforage.setItem('circuitBreakerPlannerCurrentProjectName', toRaw(this.currentProject.name));
 						localforage.setItem('circuitBreakerPlannerProject_' + toRaw(this.currentProject.name), toRaw(this.currentProject));
 					}
 					else
 					{
-						console.log("currentProject is ", this.currentProject);
+						console.log("currentProject is", this.currentProject);
 						localforage.removeItem('circuitBreakerPlannerCurrentProjectName');
 					}
 				}
