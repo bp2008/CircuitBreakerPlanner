@@ -60,7 +60,7 @@ export function fitTextToBox(parentSelector, maxHeight, el, text)
 			return i + "px";
 		}
 	}
-	return "16px";
+	return minTextSizePx + "px";
 }
 
 function doesTextFit(fontSizePx, heightLimit)
